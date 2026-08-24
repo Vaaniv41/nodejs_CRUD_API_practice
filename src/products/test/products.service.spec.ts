@@ -95,7 +95,7 @@ describe('ProductsService', () => {
       const id = 10;
       const spy = jest
         .spyOn(productRepository, 'findOneBy')
-        .mockImplementationOnce(() => undefined);
+        .mockImplementationOnce(() => Promise.resolve(null));
       await expect(service.update(id, productStub())).rejects.toThrowError(
         HttpException,
       );
@@ -122,7 +122,7 @@ describe('ProductsService', () => {
       const id = 10;
       const spy = jest
         .spyOn(productRepository, 'findOneBy')
-        .mockImplementationOnce(() => undefined);
+        .mockImplementationOnce(() => Promise.resolve(null));
       await expect(service.delete(id)).rejects.toThrowError(HttpException);
       expect(spy).toBeCalledTimes(1);
       expect(spy).toBeCalledWith({
