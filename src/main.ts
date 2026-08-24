@@ -12,7 +12,14 @@ async function bootstrap() {
   app.use(helmet());
 
   // Validation
-  app.useGlobalPipes(new ValidationPipe({ disableErrorMessages: false }));
+  app.useGlobalPipes(
+    new ValidationPipe({
+      transform: true,
+      whitelist: true,
+      forbidNonWhitelisted: true,
+      disableErrorMessages: process.env.NODE_ENV === 'production',
+    }),
+  );
 
   // OpenAPI Specification
   const config = new DocumentBuilder()
