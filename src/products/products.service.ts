@@ -1,4 +1,4 @@
-import { HttpException, HttpStatus, Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { CreateProductDto, UpdateProductDto } from './dto/index';
@@ -15,17 +15,15 @@ export class ProductsService {
   }
 
   async getOneById(id: number): Promise<Product> {
-    try {
-      return await this.productRepository.findOneOrFail({
-        where: { product_id: id },
-      });
-    } catch (err) {
-      console.log('Get one product by id error: ', err.message ?? err);
-      throw new HttpException(
-        `Product with id ${id} not found.`,
-        HttpStatus.NOT_FOUND,
-      );
+    const product = await this.productRepository.findOneBy({
+      product_id: id,
+    });
+
+    if (!product) {
+      throw new NotFoundException(`Product with id ${id} not found.`);
     }
+
+    return product;
   }
 
   async create(product: CreateProductDto): Promise<Product> {
@@ -39,10 +37,7 @@ export class ProductsService {
     });
 
     if (!foundProduct) {
-      throw new HttpException(
-        `Product with id ${id} not found.`,
-        HttpStatus.NOT_FOUND,
-      );
+      throw new NotFoundException(`Product with id ${id} not found.`);
     }
 
     foundProduct = { ...foundProduct, ...product, updated_at: new Date() };
@@ -50,15 +45,12 @@ export class ProductsService {
   }
 
   async delete(id: number): Promise<number> {
-    let foundProduct = await this.productRepository.findOneBy({
+    const foundProduct = await this.productRepository.findOneBy({
       product_id: id,
     });
 
     if (!foundProduct) {
-      throw new HttpException(
-        `Product with id ${id} not found.`,
-        HttpStatus.NOT_FOUND,
-      );
+      throw new NotFoundException(`Product with id ${id} not found.`);
     }
 
     await this.productRepository.delete(id);

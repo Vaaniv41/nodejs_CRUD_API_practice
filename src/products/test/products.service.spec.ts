@@ -1,4 +1,4 @@
-import { HttpException, HttpStatus } from '@nestjs/common';
+import { HttpException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -44,25 +44,20 @@ describe('ProductsService', () => {
   describe('getOneById', () => {
     it('should get a single product', () => {
       expect(service.getOneById(1)).resolves.toEqual(productStub());
-      expect(productRepository.findOneOrFail).toBeCalledWith({
-        where: { product_id: 1 },
+      expect(productRepository.findOneBy).toBeCalledWith({
+        product_id: 1,
       });
     });
 
     it("should return an http error when product id doesn't exist", async () => {
       const id = 10;
       const spy = jest
-        .spyOn(productRepository, 'findOneOrFail')
-        .mockImplementationOnce(() => {
-          throw new HttpException(
-            `Product with id ${id} not found.`,
-            HttpStatus.NOT_FOUND,
-          );
-        });
+        .spyOn(productRepository, 'findOneBy')
+        .mockImplementationOnce(() => Promise.resolve(null));
       await expect(service.getOneById(id)).rejects.toThrowError(HttpException);
       expect(spy).toBeCalledTimes(1);
       expect(spy).toBeCalledWith({
-        where: { product_id: id },
+        product_id: id,
       });
     });
   });

@@ -6,8 +6,6 @@ import {
   Delete,
   Param,
   ParseIntPipe,
-  UsePipes,
-  ValidationPipe,
   Patch,
 } from '@nestjs/common';
 import { CreateProductDto, UpdateProductDto } from './dto/index';
@@ -34,7 +32,6 @@ export class ProductsController {
   }
 
   @Patch(':id')
-  @UsePipes(ValidationPipe)
   async update(
     @Param('id', ParseIntPipe) id: number,
     @Body() product: UpdateProductDto,
@@ -43,7 +40,7 @@ export class ProductsController {
   }
 
   @Delete(':id')
-  async delete(@Param('id') id: number): Promise<number> {
+  async delete(@Param('id', ParseIntPipe) id: number): Promise<number> {
     return this.productsService.delete(id);
   }
 }

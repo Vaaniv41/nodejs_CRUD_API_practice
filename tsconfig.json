@@ -12,7 +12,7 @@
     "outDir": "./dist",
     "baseUrl": "./",
     "ignoreDeprecations": "6.0",
-    "incremental": true,
+    "incremental": false,
     "skipLibCheck": true,
     "strictNullChecks": true,
     "noImplicitAny": true,
