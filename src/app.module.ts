@@ -7,6 +7,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { typeormConnectionConfig } from 'src/config/typeorm.config';
 import { ProductsModule } from './products/products.module';
 
+
 @Module({
   imports: [
     envModule,
