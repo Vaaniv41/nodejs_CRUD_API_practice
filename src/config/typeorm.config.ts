@@ -23,5 +23,5 @@ export const createTypeormConnectionConfig = (
   database: configService.get<string>('MYSQL_DATABASE'),
   entities: [join(__dirname, '..', '**', '*.entity.{js,ts}')],
   synchronize: configService.get<string>('NODE_ENV') !== 'production',
-  timezone: 'utc',
+  timezone: 'Z',
 });
