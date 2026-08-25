@@ -1,21 +1,31 @@
 #!/bin/bash
-set -euo pipefail
-dnf update -y
-dnf install -y docker awscli jq
-systemctl enable --now docker
 
-cat >/usr/local/bin/deploy-nestjs <<'SCRIPT'
-#!/bin/bash
-set -euo pipefail
-IMAGE_URI="$1"
-REGION="${aws_region}"
-PASSWORD=$(aws secretsmanager get-secret-value --secret-id "${db_secret_arn}" --region "$REGION" --query SecretString --output text | jq -r '.password')
-aws ecr get-login-password --region "$REGION" | docker login --username AWS --password-stdin "${ecr_repository}"
-docker pull "$IMAGE_URI"
-docker rm -f nestjs-api 2>/dev/null || true
-docker run -d --name nestjs-api --restart unless-stopped -p ${app_port}:${app_port} \
-  -e NODE_ENV=production -e API_PORT=${app_port} \
-  -e MYSQL_HOST=${db_host} -e MYSQL_PORT=3306 -e MYSQL_DATABASE=${db_name} \
-  -e MYSQL_USER=${db_user} -e MYSQL_PASSWORD="$PASSWORD" "$IMAGE_URI"
-SCRIPT
-chmod 700 /usr/local/bin/deploy-nestjs
+set -e
+
+apt-get update -y
+
+apt-get install -y curl git
+
+curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
+apt-get install -y nodejs
+
+node --version
+npm --version
+
+cd /home/ubuntu
+
+git clone https://github.com/Vaaniv41/nodejs_CRUD_API_practice.git app
+
+cd /home/ubuntu/app
+
+npm install
+
+npm run build
+
+npm install -g pm2
+
+pm2 start dist/main.js --name nestjs-app
+
+pm2 save
+
+pm2 startup systemd -u ubuntu --hp /home/ubuntu

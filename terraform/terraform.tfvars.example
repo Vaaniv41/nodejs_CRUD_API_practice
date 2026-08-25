@@ -1,3 +1,8 @@
-aws_region        = "ap-south-1"
-project_name      = "nestjs-products"
-github_repository = "YOUR_GITHUB_OWNER/YOUR_REPOSITORY"
+aws_region   = "ap-south-1"
+project_name = "nestjs-products"
+
+instance_type = "t3.micro"
+
+db_name     = "products_db"
+db_username = "products_user"
+db_password = "CHANGE_THIS_TO_A_STRONG_PASSWORD"
