@@ -17,7 +17,7 @@ variable "instance_type" {
 }
 
 variable "key_name" {
-  description = "Existing EC2 key pair name"
+  description = "Existing EC2 key pair"
   type        = string
   default     = "nestjs-products-key"
 }
@@ -29,13 +29,13 @@ variable "db_name" {
 }
 
 variable "db_username" {
-  description = "RDS database username"
+  description = "RDS username"
   type        = string
   default     = "products_user"
 }
 
 variable "db_password" {
-  description = "RDS database password"
+  description = "RDS password"
   type        = string
   sensitive   = true
 }

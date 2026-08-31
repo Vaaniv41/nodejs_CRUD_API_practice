@@ -1,13 +1,11 @@
-# ---------------------------------------------------------
+# =========================================================
 # DATA SOURCES
-# ---------------------------------------------------------
+# =========================================================
 
-# Use the existing AWS default VPC
 data "aws_vpc" "default" {
   default = true
 }
 
-# Get subnets belonging to the default VPC
 data "aws_subnets" "default" {
   filter {
     name   = "vpc-id"
@@ -15,7 +13,7 @@ data "aws_subnets" "default" {
   }
 }
 
-# Latest Ubuntu 24.04 LTS AMI
+# Latest Ubuntu 24.04 LTS
 data "aws_ami" "ubuntu" {
   most_recent = true
 
@@ -43,25 +41,16 @@ data "aws_ami" "ubuntu" {
 }
 
 
-# ---------------------------------------------------------
-# RANDOM ID FOR UNIQUE S3 BUCKET
-# ---------------------------------------------------------
-
-resource "random_id" "bucket_suffix" {
-  byte_length = 4
-}
-
-
-# ---------------------------------------------------------
+# =========================================================
 # EC2 SECURITY GROUP
-# ---------------------------------------------------------
+# =========================================================
 
 resource "aws_security_group" "ec2" {
-  name        = "${var.project_name}-ec2"
+  name        = "nestjs-products-ec2"
   description = "Security group for NestJS EC2"
   vpc_id      = data.aws_vpc.default.id
 
-  # SSH
+  # SSH - required for VS Code Remote SSH
   ingress {
     description = "SSH"
     from_port   = 22
@@ -70,7 +59,7 @@ resource "aws_security_group" "ec2" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
-  # HTTP
+  # HTTP - Docker/Nginx/application
   ingress {
     description = "HTTP"
     from_port   = 80
@@ -88,7 +77,6 @@ resource "aws_security_group" "ec2" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
-  # Outbound traffic
   egress {
     from_port   = 0
     to_port     = 0
@@ -97,22 +85,22 @@ resource "aws_security_group" "ec2" {
   }
 
   tags = {
-    Name    = "${var.project_name}-ec2-sg"
+    Name    = "nestjs-products-ec2-sg"
     Project = var.project_name
   }
 }
 
 
-# ---------------------------------------------------------
+# =========================================================
 # RDS SECURITY GROUP
-# ---------------------------------------------------------
+# =========================================================
 
 resource "aws_security_group" "rds" {
-  name        = "${var.project_name}-rds"
-  description = "Security group for NestJS RDS MySQL"
+  name        = "nestjs-products-rds"
+  description = "Security group for MySQL RDS"
   vpc_id      = data.aws_vpc.default.id
 
-  # Allow MySQL only from EC2
+  # MySQL accessible ONLY from EC2 security group
   ingress {
     description     = "MySQL from EC2"
     from_port       = 3306
@@ -121,7 +109,6 @@ resource "aws_security_group" "rds" {
     security_groups = [aws_security_group.ec2.id]
   }
 
-  # Outbound traffic
   egress {
     from_port   = 0
     to_port     = 0
@@ -130,38 +117,39 @@ resource "aws_security_group" "rds" {
   }
 
   tags = {
-    Name    = "${var.project_name}-rds-sg"
-    Project = var.project_name
+    Name = "nestjs-products-rds-sg"
   }
 }
 
 
-# ---------------------------------------------------------
-# EC2 INSTANCE
-# ---------------------------------------------------------
+# =========================================================
+# NEW EC2 INSTANCE
+# =========================================================
 
 resource "aws_instance" "app" {
   ami           = data.aws_ami.ubuntu.id
   instance_type = var.instance_type
 
-  subnet_id = data.aws_subnets.default.ids[0]
-
+  # Your existing AWS key pair
   key_name = var.key_name
+
+  subnet_id = data.aws_subnets.default.ids[0]
 
   vpc_security_group_ids = [
     aws_security_group.ec2.id
   ]
 
+  # Install Docker and Git when the NEW EC2 is created
   user_data = <<-EOF
               #!/bin/bash
 
+              set -e
+
+              # Update packages
               apt-get update -y
 
               # Install Docker
               apt-get install -y docker.io
-
-              # Install Docker Compose plugin
-              apt-get install -y docker-compose-v2
 
               # Install Git
               apt-get install -y git
@@ -170,14 +158,19 @@ resource "aws_instance" "app" {
               systemctl enable docker
               systemctl start docker
 
-              # Allow ubuntu user to run Docker
+              # Allow ubuntu user to run Docker without sudo
               usermod -aG docker ubuntu
 
               # Create application directory
               mkdir -p /home/ubuntu/nestjs-crud-api
 
-              # Give ownership to ubuntu
+              # Set ownership
               chown -R ubuntu:ubuntu /home/ubuntu/nestjs-crud-api
+
+              # Create deployment marker
+              touch /home/ubuntu/docker-ready
+
+              chown ubuntu:ubuntu /home/ubuntu/docker-ready
               EOF
 
   root_block_device {
@@ -192,28 +185,28 @@ resource "aws_instance" "app" {
 }
 
 
-# ---------------------------------------------------------
-# RDS SUBNET GROUP
-# ---------------------------------------------------------
+# =========================================================
+# EXISTING RDS SUBNET GROUP
+# =========================================================
 
 resource "aws_db_subnet_group" "mysql" {
-  name = "${var.project_name}-mysql-subnet-group"
+  name = "nestjs-products-db-subnet"
 
   subnet_ids = data.aws_subnets.default.ids
 
   tags = {
-    Name    = "${var.project_name}-mysql-subnet-group"
+    Name    = "nestjs-products-db-subnet"
     Project = var.project_name
   }
 }
 
 
-# ---------------------------------------------------------
-# RDS MYSQL
-# ---------------------------------------------------------
+# =========================================================
+# EXISTING RDS MYSQL
+# =========================================================
 
 resource "aws_db_instance" "mysql" {
-  identifier = "${var.project_name}-mysql"
+  identifier = "nestjs-products-mysql"
 
   engine         = "mysql"
   engine_version = "8.0"
@@ -246,29 +239,28 @@ resource "aws_db_instance" "mysql" {
   deletion_protection = false
 
   tags = {
-    Name    = "${var.project_name}-mysql"
+    Name    = "nestjs-products-mysql"
     Project = var.project_name
   }
 }
 
 
-# ---------------------------------------------------------
-# S3 BUCKET
-# ---------------------------------------------------------
+# =========================================================
+# S3
+# =========================================================
+
+resource "random_id" "bucket_suffix" {
+  byte_length = 4
+}
 
 resource "aws_s3_bucket" "app" {
   bucket = "${var.project_name}-${random_id.bucket_suffix.hex}"
 
   tags = {
-    Name    = "${var.project_name}-bucket"
+    Name    = "nestjs-products-bucket"
     Project = var.project_name
   }
 }
-
-
-# ---------------------------------------------------------
-# S3 BLOCK PUBLIC ACCESS
-# ---------------------------------------------------------
 
 resource "aws_s3_bucket_public_access_block" "app" {
   bucket = aws_s3_bucket.app.id
@@ -278,11 +270,6 @@ resource "aws_s3_bucket_public_access_block" "app" {
   ignore_public_acls      = true
   restrict_public_buckets = true
 }
-
-
-# ---------------------------------------------------------
-# S3 VERSIONING
-# ---------------------------------------------------------
 
 resource "aws_s3_bucket_versioning" "app" {
   bucket = aws_s3_bucket.app.id
