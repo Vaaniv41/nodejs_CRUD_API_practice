@@ -16,7 +16,7 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run build
-      - run: npm test -- --runInBand
+      - run: npm test
 
   deploy:
     needs: test
