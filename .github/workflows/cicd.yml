@@ -3,26 +3,22 @@ name: CI/CD
 on:
   pull_request:
   push:
-    branches: [main]
+    branches:
+      - main
 
 jobs:
-
-  # ==========================================
-  # CI
-  # ==========================================
 
   test:
     runs-on: ubuntu-latest
 
     steps:
-
       - name: Checkout code
         uses: actions/checkout@v6
 
       - name: Setup Node.js
         uses: actions/setup-node@v7
         with:
-          node-version: 24
+          node-version: '20'
           cache: npm
 
       - name: Install dependencies
@@ -34,10 +30,6 @@ jobs:
       - name: Run tests
         run: npm test
 
-
-  # ==========================================
-  # CD
-  # ==========================================
 
   deploy:
     needs: test
@@ -65,6 +57,7 @@ jobs:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USERNAME }}
           key: ${{ secrets.EC2_SSH_KEY }}
+          port: 22
 
           envs: DB_HOST,DB_PORT,DB_USERNAME,DB_PASSWORD,DB_DATABASE,API_PORT,NODE_ENV,GH_PAT
 
@@ -76,39 +69,22 @@ jobs:
             echo "Starting deployment"
             echo "================================"
 
-            # --------------------------------
-            # 1. Create application directory
-            # --------------------------------
-
             mkdir -p ~/app
             cd ~/app
 
-
-            # --------------------------------
-            # 2. Get latest source code
-            # --------------------------------
-
             if [ -d ".git" ]; then
-
-              echo "Updating existing repository..."
+              echo "Updating repository..."
 
               git fetch origin
               git reset --hard origin/main
 
             else
-
               echo "Cloning repository..."
 
               git clone https://${GH_PAT}@github.com/${{ github.repository }}.git .
-
             fi
 
-
-            # --------------------------------
-            # 3. Create production .env
-            # --------------------------------
-
-            echo "Creating production environment..."
+            echo "Creating production .env..."
 
             cat > .env <<EOF
             DB_HOST=${DB_HOST}
@@ -122,21 +98,9 @@ jobs:
 
             chmod 600 .env
 
-
-            # --------------------------------
-            # 4. Build Docker image
-            # --------------------------------
-
             echo "Building Docker image..."
 
-            docker build \
-              -t nestjs-app:latest \
-              .
-
-
-            # --------------------------------
-            # 5. Run database migrations
-            # --------------------------------
+            docker build -t nestjs-app:latest .
 
             echo "Running database migrations..."
 
@@ -145,20 +109,10 @@ jobs:
               nestjs-app:latest \
               npm run migration:run
 
-
-            # --------------------------------
-            # 6. Stop old application
-            # --------------------------------
-
             echo "Stopping old container..."
 
             docker stop app-container || true
             docker rm app-container || true
-
-
-            # --------------------------------
-            # 7. Start new application
-            # --------------------------------
 
             echo "Starting new container..."
 
@@ -169,31 +123,22 @@ jobs:
               --env-file .env \
               nestjs-app:latest
 
-
-            # --------------------------------
-            # 8. Verify container
-            # --------------------------------
-
-            echo "Checking container..."
+            echo "Waiting for application..."
 
             sleep 10
 
+            echo "Checking container..."
+
             docker ps
 
-
-            # --------------------------------
-            # 9. Show application logs
-            # --------------------------------
+            echo "Application logs..."
 
             docker logs --tail=50 app-container
 
-
-            # --------------------------------
-            # 10. Cleanup
-            # --------------------------------
+            echo "Cleaning unused images..."
 
             docker image prune -f
 
             echo "================================"
-            echo "Deployment completed"
+            echo "Deployment completed successfully!"
             echo "================================"
