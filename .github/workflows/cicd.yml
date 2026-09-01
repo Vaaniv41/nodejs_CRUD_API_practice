@@ -66,5 +66,86 @@ jobs:
            hostname
            whoami
 
+           
+            # set -e
+
+            # echo "================================"
+            # echo "Starting deployment"
+            # echo "================================"
+
+            # mkdir -p ~/app
+            # cd ~/app
+
+            # if [ -d ".git" ]; then
+            #   echo "Updating repository..."
+
+            #   git fetch origin
+            #   git reset --hard origin/main
+
+            # else
+            #   echo "Cloning repository..."
+
+            #   git clone https://${GH_PAT}@github.com/${{ github.repository }}.git .
+            # fi
+
+            # echo "Creating production .env..."
+
+            # cat > .env <<EOF
+            # DB_HOST=${DB_HOST}
+            # DB_PORT=${DB_PORT}
+            # DB_USERNAME=${DB_USERNAME}
+            # DB_PASSWORD=${DB_PASSWORD}
+            # DB_DATABASE=${DB_DATABASE}
+            # API_PORT=${API_PORT}
+            # NODE_ENV=${NODE_ENV}
+            # EOF
+
+            # chmod 600 .env
+
+            # echo "Building Docker image..."
+
+            # docker build -t nestjs-app:latest .
+
+            # echo "Running database migrations..."
+
+            # docker run --rm \
+            #   --env-file .env \
+            #   nestjs-app:latest \
+            #   npm run migration:run
+
+            # echo "Stopping old container..."
+
+            # docker stop app-container || true
+            # docker rm app-container || true
+
+            # echo "Starting new container..."
+
+            # docker run -d \
+            #   --name app-container \
+            #   --restart always \
+            #   -p 80:5000 \
+            #   --env-file .env \
+            #   nestjs-app:latest
+
+            # echo "Waiting for application..."
+
+            # sleep 10
+
+            # echo "Checking container..."
+
+            # docker ps
+
+            # echo "Application logs..."
+
+            # docker logs --tail=50 app-container
+
+            # echo "Cleaning unused images..."
+
+            # docker image prune -f
+
+            # echo "================================"
+            # echo "Deployment completed successfully!"
+            # echo "================================"
+ 
 
            
