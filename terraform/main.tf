@@ -13,6 +13,7 @@ data "aws_subnets" "default" {
   }
 }
 
+
 # Latest Ubuntu 24.04 LTS
 data "aws_ami" "ubuntu" {
   most_recent = true
