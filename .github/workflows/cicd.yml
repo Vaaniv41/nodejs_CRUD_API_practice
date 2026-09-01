@@ -1,25 +1,70 @@
-- name: Deploy to EC2
-  uses: appleboy/ssh-action@v1.0.3
+name: CI/CD
 
-  env:
-    DB_HOST: ${{ secrets.DB_HOST }}
-    DB_PORT: ${{ secrets.DB_PORT }}
-    DB_USERNAME: ${{ secrets.DB_USERNAME }}
-    DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
-    DB_DATABASE: ${{ secrets.DB_DATABASE }}
-    API_PORT: ${{ secrets.API_PORT }}
-    NODE_ENV: production
-    GH_PAT: ${{ secrets.GH_PAT }}
+on:
+  pull_request:
+  push:
+    branches:
+      - main
 
-  with:
-    host: ${{ secrets.EC2_HOST }}
-    username: ${{ secrets.EC2_USERNAME }}
-    key: ${{ secrets.EC2_SSH_KEY }}
-    port: 22
+jobs:
 
-    envs: DB_HOST,DB_PORT,DB_USERNAME,DB_PASSWORD,DB_DATABASE,API_PORT,NODE_ENV,GH_PAT
+  test:
+    runs-on: ubuntu-latest
 
-    script: |
-      echo "SSH connection successful"
-      hostname
-      whoami
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build application
+        run: npm run build
+
+      - name: Run tests
+        run: npm test
+
+
+  deploy:
+    needs: test
+
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    runs-on: ubuntu-latest
+
+    steps:
+
+      - name: Deploy to EC2
+        uses: appleboy/ssh-action@v1.0.3
+
+        env:
+          DB_HOST: ${{ secrets.DB_HOST }}
+          DB_PORT: ${{ secrets.DB_PORT }}
+          DB_USERNAME: ${{ secrets.DB_USERNAME }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          DB_DATABASE: ${{ secrets.DB_DATABASE }}
+          API_PORT: ${{ secrets.API_PORT }}
+          NODE_ENV: production
+          GH_PAT: ${{ secrets.GH_PAT }}
+
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USERNAME }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          port: 22
+
+          envs: DB_HOST,DB_PORT,DB_USERNAME,DB_PASSWORD,DB_DATABASE,API_PORT,NODE_ENV,GH_PAT
+
+          script: |
+           echo "SSH connection successful"
+           hostname
+           whoami
+
+
+           
