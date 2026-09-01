@@ -6,62 +6,194 @@ on:
     branches: [main]
 
 jobs:
+
+  # ==========================================
+  # CI
+  # ==========================================
+
   test:
     runs-on: ubuntu-latest
+
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: npm
-      - run: npm ci
-      - run: npm run build
-      - run: npm test
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build application
+        run: npm run build
+
+      - name: Run tests
+        run: npm test
+
+
+  # ==========================================
+  # CD
+  # ==========================================
 
   deploy:
     needs: test
+
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
     runs-on: ubuntu-latest
+
     steps:
-      - name: Deploy on EC2 via SSH
+
+      - name: Deploy to EC2
         uses: appleboy/ssh-action@v1.0.3
+
+        env:
+          DB_HOST: ${{ secrets.DB_HOST }}
+          DB_PORT: ${{ secrets.DB_PORT }}
+          DB_USERNAME: ${{ secrets.DB_USERNAME }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          DB_DATABASE: ${{ secrets.DB_DATABASE }}
+          API_PORT: ${{ secrets.API_PORT }}
+          NODE_ENV: production
+          GH_PAT: ${{ secrets.GH_PAT }}
+
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USERNAME }}
           key: ${{ secrets.EC2_SSH_KEY }}
-          script: |
-          
-            # 1. Navigate to app directory (Create if first run)
-            mkdir -p ~/app && cd ~/app
 
-            # 2. Pull latest code using GitHub Personal Access Token (for private repos)
+          envs: DB_HOST,DB_PORT,DB_USERNAME,DB_PASSWORD,DB_DATABASE,API_PORT,NODE_ENV,GH_PAT
+
+          script: |
+
+            set -e
+
+            echo "================================"
+            echo "Starting deployment"
+            echo "================================"
+
+            # --------------------------------
+            # 1. Create application directory
+            # --------------------------------
+
+            mkdir -p ~/app
+            cd ~/app
+
+
+            # --------------------------------
+            # 2. Get latest source code
+            # --------------------------------
+
             if [ -d ".git" ]; then
-              git pull https://${{ secrets.GH_PAT }}@github.com/${{ github.repository }}.git main
+
+              echo "Updating existing repository..."
+
+              git fetch origin
+              git reset --hard origin/main
+
             else
-              git clone https://${{ secrets.GH_PAT }}@github.com/${{ github.repository }}.git .
+
+              echo "Cloning repository..."
+
+              git clone https://${GH_PAT}@github.com/${{ github.repository }}.git .
+
             fi
 
-            # 3. Step into application directory (Adjust if your Dockerfile is in nestjs-crud-api)
-            if [ -d "nestjs-crud-api" ]; then cd nestjs-crud-api; fi
 
-            # 4. Build the new Docker image FIRST (keeps old app online during build)
-            docker build -t nestjs-app:latest .
+            # --------------------------------
+            # 3. Create production .env
+            # --------------------------------
 
-            # 5. Run Database Migrations against RDS
+            echo "Creating production environment..."
+
+            cat > .env <<EOF
+DB_HOST=${DB_HOST}
+DB_PORT=${DB_PORT}
+DB_USERNAME=${DB_USERNAME}
+DB_PASSWORD=${DB_PASSWORD}
+DB_DATABASE=${DB_DATABASE}
+API_PORT=${API_PORT}
+NODE_ENV=${NODE_ENV}
+EOF
+
+            chmod 600 .env
+
+
+            # --------------------------------
+            # 4. Build Docker image
+            # --------------------------------
+
+            echo "Building Docker image..."
+
+            docker build \
+              -t nestjs-app:latest \
+              .
+
+
+            # --------------------------------
+            # 5. Run database migrations
+            # --------------------------------
+
+            echo "Running database migrations..."
+
             docker run --rm \
-              --env-file /home/${{ secrets.EC2_USERNAME }}/.env \
-              nestjs-app:latest npm run migration:run || true
+              --env-file .env \
+              nestjs-app:latest \
+              npm run migration:run
 
-            # 6. Swap containers with minimal downtime
+
+            # --------------------------------
+            # 6. Stop old application
+            # --------------------------------
+
+            echo "Stopping old container..."
+
             docker stop app-container || true
             docker rm app-container || true
+
+
+            # --------------------------------
+            # 7. Start new application
+            # --------------------------------
+
+            echo "Starting new container..."
 
             docker run -d \
               --name app-container \
               --restart always \
-              -p 80:3000 \
-              --env-file /home/${{ secrets.EC2_USERNAME }}/.env \
+              -p 80:5000 \
+              --env-file .env \
               nestjs-app:latest
 
-            # 7. Clean up unused build cache and old images
+
+            # --------------------------------
+            # 8. Verify container
+            # --------------------------------
+
+            echo "Checking container..."
+
+            sleep 10
+
+            docker ps
+
+
+            # --------------------------------
+            # 9. Show application logs
+            # --------------------------------
+
+            docker logs --tail=50 app-container
+
+
+            # --------------------------------
+            # 10. Cleanup
+            # --------------------------------
+
             docker image prune -f
+
+            echo "================================"
+            echo "Deployment completed"
+            echo "================================"
