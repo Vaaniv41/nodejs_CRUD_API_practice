@@ -3,26 +3,22 @@ name: CI/CD
 on:
   pull_request:
   push:
-    branches: [main]
+    branches:
+      - main
 
 jobs:
-
-  # ==========================================
-  # CI
-  # ==========================================
 
   test:
     runs-on: ubuntu-latest
 
     steps:
-
       - name: Checkout code
         uses: actions/checkout@v6
 
       - name: Setup Node.js
         uses: actions/setup-node@v7
         with:
-          node-version: 24
+          node-version: '20'
           cache: npm
 
       - name: Install dependencies
@@ -35,103 +31,114 @@ jobs:
         run: npm test
 
 
-  # ==========================================
-  # CD
-  # ==========================================
-
   deploy:
-  needs: test
+    needs: test
 
-  if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
 
-  runs-on: ubuntu-latest
+    runs-on: ubuntu-latest
 
-  steps:
+    steps:
 
-    - name: Deploy to EC2
-      uses: appleboy/ssh-action@v1.0.3
+      - name: Deploy to EC2
+        uses: appleboy/ssh-action@v1.0.3
 
-      env:
-        DB_HOST: ${{ secrets.DB_HOST }}
-        DB_PORT: ${{ secrets.DB_PORT }}
-        DB_USERNAME: ${{ secrets.DB_USERNAME }}
-        DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
-        DB_DATABASE: ${{ secrets.DB_DATABASE }}
-        API_PORT: ${{ secrets.API_PORT }}
-        NODE_ENV: production
-        GH_PAT: ${{ secrets.GH_PAT }}
+        env:
+          DB_HOST: ${{ secrets.DB_HOST }}
+          DB_PORT: ${{ secrets.DB_PORT }}
+          DB_USERNAME: ${{ secrets.DB_USERNAME }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          DB_DATABASE: ${{ secrets.DB_DATABASE }}
+          API_PORT: ${{ secrets.API_PORT }}
+          NODE_ENV: production
+          GH_PAT: ${{ secrets.GH_PAT }}
 
-      with:
-        host: ${{ secrets.EC2_HOST }}
-        username: ${{ secrets.EC2_USERNAME }}
-        key: ${{ secrets.EC2_SSH_KEY }}
-        port: 22
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USERNAME }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          port: 22
 
-        envs: DB_HOST,DB_PORT,DB_USERNAME,DB_PASSWORD,DB_DATABASE,API_PORT,NODE_ENV,GH_PAT
+          envs: DB_HOST,DB_PORT,DB_USERNAME,DB_PASSWORD,DB_DATABASE,API_PORT,NODE_ENV,GH_PAT
 
-        script: |
+          script: |
 
-          set -e
+            set -e
 
-          echo "Connected to EC2 successfully"
+            echo "================================"
+            echo "Starting deployment"
+            echo "================================"
 
-          mkdir -p ~/app
-          cd ~/app
+            mkdir -p ~/app
+            cd ~/app
 
-          if [ -d ".git" ]; then
-            echo "Updating repository..."
-            git fetch origin
-            git reset --hard origin/main
-          else
-            echo "Cloning repository..."
-            git clone https://${GH_PAT}@github.com/${{ github.repository }}.git .
-          fi
+            if [ -d ".git" ]; then
+              echo "Updating repository..."
 
-          echo "Creating .env..."
+              git fetch origin
+              git reset --hard origin/main
 
-          cat > .env <<EOF
-          DB_HOST=${DB_HOST}
-          DB_PORT=${DB_PORT}
-          DB_USERNAME=${DB_USERNAME}
-          DB_PASSWORD=${DB_PASSWORD}
-          DB_DATABASE=${DB_DATABASE}
-          API_PORT=${API_PORT}
-          NODE_ENV=${NODE_ENV}
-          EOF
+            else
+              echo "Cloning repository..."
 
-          chmod 600 .env
+              git clone https://${GH_PAT}@github.com/${{ github.repository }}.git .
+            fi
 
-          echo "Building Docker image..."
+            echo "Creating production .env..."
 
-          docker build -t nestjs-app:latest .
+            cat > .env <<EOF
+            DB_HOST=${DB_HOST}
+            DB_PORT=${DB_PORT}
+            DB_USERNAME=${DB_USERNAME}
+            DB_PASSWORD=${DB_PASSWORD}
+            DB_DATABASE=${DB_DATABASE}
+            API_PORT=${API_PORT}
+            NODE_ENV=${NODE_ENV}
+            EOF
 
-          echo "Running migrations..."
+            chmod 600 .env
 
-          docker run --rm \
-            --env-file .env \
-            nestjs-app:latest \
-            npm run migration:run
+            echo "Building Docker image..."
 
-          echo "Stopping old container..."
+            docker build -t nestjs-app:latest .
 
-          docker stop app-container || true
-          docker rm app-container || true
+            echo "Running database migrations..."
 
-          echo "Starting new container..."
+            docker run --rm \
+              --env-file .env \
+              nestjs-app:latest \
+              npm run migration:run
 
-          docker run -d \
-            --name app-container \
-            --restart always \
-            -p 80:5000 \
-            --env-file .env \
-            nestjs-app:latest
+            echo "Stopping old container..."
 
-          echo "Checking container..."
+            docker stop app-container || true
+            docker rm app-container || true
 
-          sleep 10
+            echo "Starting new container..."
 
-          docker ps
+            docker run -d \
+              --name app-container \
+              --restart always \
+              -p 80:5000 \
+              --env-file .env \
+              nestjs-app:latest
 
-          docker logs --tail=50 app-container
+            echo "Waiting for application..."
 
-          echo "Deployment completed!"
+            sleep 10
+
+            echo "Checking container..."
+
+            docker ps
+
+            echo "Application logs..."
+
+            docker logs --tail=50 app-container
+
+            echo "Cleaning unused images..."
+
+            docker image prune -f
+
+            echo "================================"
+            echo "Deployment completed successfully!"
+            echo "================================"
