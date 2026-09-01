@@ -135,20 +135,20 @@ resource "aws_instance" "app" {
   # Your existing AWS key pair
   key_name = aws_key_pair.ec2.key_name
   resource "tls_private_key" "ec2" {
-  algorithm = "RSA"
-  rsa_bits  = 4096
-}
+    algorithm = "RSA"
+    rsa_bits  = 4096
+  }
 
-resource "aws_key_pair" "ec2" {
-  key_name   = "nestjs-products-new-key"
-  public_key = tls_private_key.ec2.public_key_openssh
-}
+  resource "aws_key_pair" "ec2" {
+    key_name   = "nestjs-products-new-key"
+    public_key = tls_private_key.ec2.public_key_openssh
+  }
 
-resource "local_sensitive_file" "ec2_private_key" {
-  content         = tls_private_key.ec2.private_key_pem
-  filename        = "${path.module}/nestjs-products-new-key.pem"
-  file_permission = "0600"
-}
+  resource "local_sensitive_file" "ec2_private_key" {
+    content         = tls_private_key.ec2.private_key_pem
+    filename        = "${path.module}/nestjs-products-new-key.pem"
+    file_permission = "0600"
+  }
 
   subnet_id = data.aws_subnets.default.ids[0]
 
