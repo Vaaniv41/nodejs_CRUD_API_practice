@@ -125,30 +125,35 @@ resource "aws_security_group" "rds" {
 # =========================================================
 # NEW EC2 INSTANCE
 # =========================================================
+# Generate a new SSH private/public key
+resource "tls_private_key" "ec2" {
+  algorithm = "RSA"
+  rsa_bits  = 4096
+}
 
+# Create the AWS key pair using the generated public key
+resource "aws_key_pair" "ec2" {
+  key_name   = "nestjs-products-new-key"
+  public_key = tls_private_key.ec2.public_key_openssh
+}
+
+# Save the private key locally as a .pem file
+resource "local_sensitive_file" "ec2_private_key" {
+  content         = tls_private_key.ec2.private_key_pem
+  filename        = "${path.module}/nestjs-products-new-key.pem"
+  file_permission = "0600"
+}
+
+
+# EC2 INSTANCE
 resource "aws_instance" "app" {
   ami           = data.aws_ami.ubuntu.id
   instance_type = var.instance_type
 
   associate_public_ip_address = true
 
-  # Your existing AWS key pair
+  # New AWS key pair
   key_name = aws_key_pair.ec2.key_name
-  resource "tls_private_key" "ec2" {
-    algorithm = "RSA"
-    rsa_bits  = 4096
-  }
-
-  resource "aws_key_pair" "ec2" {
-    key_name   = "nestjs-products-new-key"
-    public_key = tls_private_key.ec2.public_key_openssh
-  }
-
-  resource "local_sensitive_file" "ec2_private_key" {
-    content         = tls_private_key.ec2.private_key_pem
-    filename        = "${path.module}/nestjs-products-new-key.pem"
-    file_permission = "0600"
-  }
 
   subnet_id = data.aws_subnets.default.ids[0]
 
